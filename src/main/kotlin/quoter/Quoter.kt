@@ -4,11 +4,13 @@ import io.ktor.client.call.HttpClientCall
 import io.ktor.client.features.ClientRequestException
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
+import io.ktor.client.response.readBytes
 import io.ktor.content.ByteArrayContent
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
 import quoter.requester.ParameterBuilder
 import quoter.requester.QuoterRequester
+import java.util.*
 
 
 enum class DisplayType(val strValue: String) {
@@ -137,6 +139,22 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
             addKey()
             header("X-Attachment-Content-Type", type)
             body = ByteArrayContent(data)
+        }
+    }
+
+    suspend fun getAttachment(id: String): Pair<String, ByteArray>? {
+        val call = reqester.getCall("attachments/$id", {})
+        if (call.response.status == HttpStatusCode.NotFound) {
+            return null
+        }
+        val type = call.response.headers["X-Attachment-Content-Type"] ?: throw IllegalStateException("Excepted X-Attachment-Content-Type header to be in attachment response")
+        val data = call.response.readBytes()
+        return type to data
+    }
+
+    suspend fun deleteAttachment(id: String): HttpClientCall {
+        return reqester.deleteCall("attachments/$id", {}) {
+            addKey()
         }
     }
 
