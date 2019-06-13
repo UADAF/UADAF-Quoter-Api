@@ -8,9 +8,8 @@ import io.ktor.client.response.readBytes
 import io.ktor.content.ByteArrayContent
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.runBlocking
-import quoter.requester.ParameterBuilder
 import quoter.requester.QuoterRequester
-import java.util.*
+import quoter.util.JsonObjectBuilder
 
 
 enum class DisplayType(val strValue: String) {
@@ -30,7 +29,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
         }
     }
 
-    private fun ParameterBuilder.init(repo: String) {
+    private fun JsonObjectBuilder.init(repo: String) {
         "resolver" to repo
     }
 
@@ -129,7 +128,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun addRepo(name: String): HttpClientCall {
-        return reqester.putCall("repo", { append("name", name) }) {
+        return reqester.putCall("repo", { "name" to name }) {
             addKey()
         }
     }

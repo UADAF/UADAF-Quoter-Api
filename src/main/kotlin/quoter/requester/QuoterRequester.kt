@@ -3,72 +3,41 @@ package quoter.requester
 import io.ktor.client.HttpClient
 import io.ktor.client.call.HttpClientCall
 import io.ktor.client.call.call
+import io.ktor.client.call.receive
+import io.ktor.client.features.json.GsonSerializer
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.parameter
 import io.ktor.client.request.request
-import io.ktor.http.HttpMethod
-import io.ktor.http.Parameters
-import io.ktor.http.plus
-import io.ktor.http.takeFrom
 import io.ktor.client.features.json.JsonFeature
+import io.ktor.http.*
+import io.ktor.http.HttpMethod.Companion.Delete
+import io.ktor.http.HttpMethod.Companion.Get
+import io.ktor.http.HttpMethod.Companion.Head
+import io.ktor.http.HttpMethod.Companion.Post
+import io.ktor.http.HttpMethod.Companion.Put
+import quoter.util.JsonObjectBuilder
+import quoter.util.json
+import java.lang.IllegalArgumentException
+
 typealias RequestBuilder = HttpRequestBuilder.() -> Unit
-
-interface ParameterBuilder {
-
-    fun append(n: String, v: String)
-
-    infix fun String.to(v: Any) {
-        append(this, v.toString())
-    }
-
-    fun end()
-}
-
-class GetParameterBulder(private val req: HttpRequestBuilder) : ParameterBuilder {
-
-    override fun append(n: String, v: String) {
-        req.parameter(n, v)
-    }
-
-    override fun end() {}
-
-}
-
-class PostParameterBuilder(private val req: HttpRequestBuilder) : ParameterBuilder {
-
-    var params = Parameters.Empty
-
-    override fun append(n: String, v: String) {
-        params += Parameters.build { append(n, v) }
-    }
-
-    override fun end() {
-        req.body = FormDataContent(params)
-    }
-
-}
 
 class QuoterRequester(val baseUrl: String) {
 
     val client = HttpClient {
 
-        install(JsonFeature)
+        install(JsonFeature) {
 
-    }
-
-    suspend inline fun <reified T> request(path: String, method: HttpMethod, body: RequestBuilder = {}): T {
-        return client.request {
-            url.takeFrom("$baseUrl${path.removePrefix("/")}")
-            this.method = method
-            body()
-            if (this.body is Parameters) {
-                this.body = FormDataContent(this.body as Parameters)
+            serializer = GsonSerializer {
+                serializeNulls()
+                disableHtmlEscaping()
             }
+
         }
+
     }
 
-    suspend inline fun call(path: String, method: HttpMethod, crossinline body: RequestBuilder = {}): HttpClientCall {
+    suspend fun call(path: String, method: HttpMethod, body: RequestBuilder = {}): HttpClientCall {
         return client.call {
             url.takeFrom("$baseUrl${path.removePrefix("/")}")
             this.method = method
@@ -79,75 +48,39 @@ class QuoterRequester(val baseUrl: String) {
         }
     }
 
-    suspend inline fun <reified T> get(path: String, params: ParameterBuilder.() -> Unit, body: RequestBuilder = {}): T = request(path, HttpMethod.Get) {
-        val p = GetParameterBulder(this)
-        p.params()
-        p.end()
+    suspend inline fun <reified T> get(path: String, noinline params: JsonObjectBuilder.() -> Unit, noinline body: RequestBuilder = {}): T = getCall(path, params, body).receive()
+
+    suspend inline fun <reified T> post(path: String, noinline params:JsonObjectBuilder.() -> Unit = {}, noinline body:RequestBuilder = {}): T = postCall(path, params, body).receive()
+    suspend inline fun <reified T> put(path: String, noinline params:JsonObjectBuilder.() -> Unit = {}, noinline body:RequestBuilder = {}): T = putCall(path, params, body).receive()
+
+    suspend inline fun <reified T> delete(path: String, noinline params:JsonObjectBuilder.() -> Unit, noinline body:RequestBuilder = {}): T = deleteCall(path, params, body).receive()
+
+    suspend inline fun <reified T> head(path: String, noinline params:JsonObjectBuilder.() -> Unit, noinline body:RequestBuilder = {}): T = headCall(path, params, body).receive()
+
+    suspend fun getCall(path: String, params: JsonObjectBuilder.() -> Unit, body: RequestBuilder = {}): HttpClientCall = call(path, Get) {
+        val p = json(params)
+        p.entrySet().map { e -> e.key to e.value }.forEach { (k, v) ->
+            if(!v.isJsonPrimitive) {
+                throw IllegalArgumentException("Can't use complex parameters in GET request")
+            }
+            parameter(k, v)
+        }
+        body()
+    }
+    
+    suspend fun complexCall(path: String, method: HttpMethod, params: JsonObjectBuilder.() -> Unit = {}, body: RequestBuilder = {}) = call(path, method) {
+        contentType(ContentType.Application.Json)
+        this.body = json(params)
         body()
     }
 
-    suspend inline fun <reified T> post(path: String, params: ParameterBuilder.() -> Unit = {}, body: RequestBuilder = {}): T = request(path, HttpMethod.Post) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
+    suspend fun postCall(path: String, params: JsonObjectBuilder.() -> Unit = {}, body: RequestBuilder = {}) = complexCall(path, Post, params, body)
 
-    suspend inline fun <reified T> put(path: String, params: ParameterBuilder.() -> Unit = {}, body: RequestBuilder = {}): T = request(path, HttpMethod.Put) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
+    suspend fun putCall(path: String, params: JsonObjectBuilder.() -> Unit = {}, body: RequestBuilder = {}) = complexCall(path, Put, params, body)
 
-    suspend inline fun <reified T> delete(path: String, params: ParameterBuilder.() -> Unit, body: RequestBuilder = {}): T = request(path, HttpMethod.Delete) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
+    suspend fun deleteCall(path: String, params: JsonObjectBuilder.() -> Unit, body: RequestBuilder = {}) = complexCall(path, Delete, params, body)
 
-    suspend inline fun <reified T> head(path: String, params: ParameterBuilder.() -> Unit, body: RequestBuilder = {}): T = request(path, HttpMethod.Head) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
-
-    suspend inline fun getCall(path: String, crossinline params: ParameterBuilder.() -> Unit, crossinline body: RequestBuilder = {}): HttpClientCall = call(path, HttpMethod.Get) {
-        val p = GetParameterBulder(this)
-        p.params()
-        p.end()
-        body()
-    }
-
-    suspend inline fun postCall(path: String, crossinline params: ParameterBuilder.() -> Unit = {}, crossinline body: RequestBuilder = {}): HttpClientCall = call(path, HttpMethod.Post) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
-
-    suspend inline fun putCall(path: String, crossinline params: ParameterBuilder.() -> Unit = {}, crossinline body: RequestBuilder = {}): HttpClientCall = call(path, HttpMethod.Put) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
-
-    suspend inline fun deleteCall(path: String, crossinline params: ParameterBuilder.() -> Unit, crossinline body: RequestBuilder = {}): HttpClientCall = call(path, HttpMethod.Delete) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
-
-    suspend inline fun headCall(path: String, crossinline params: ParameterBuilder.() -> Unit, crossinline body: RequestBuilder = {}): HttpClientCall = call(path, HttpMethod.Head) {
-        val p = PostParameterBuilder(this)
-        p.params()
-        p.end()
-        body()
-    }
+    suspend fun headCall(path: String, params: JsonObjectBuilder.() -> Unit, body: RequestBuilder = {}) = complexCall(path, Head, params, body)
 
     fun close() {
         client.close()
