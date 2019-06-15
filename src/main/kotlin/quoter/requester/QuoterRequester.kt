@@ -26,14 +26,7 @@ class QuoterRequester(val baseUrl: String) {
 
     val client = HttpClient {
 
-        install(JsonFeature) {
-
-            serializer = GsonSerializer {
-                serializeNulls()
-                disableHtmlEscaping()
-            }
-
-        }
+        install(JsonFeature)
 
     }
 
@@ -42,9 +35,6 @@ class QuoterRequester(val baseUrl: String) {
             url.takeFrom("$baseUrl${path.removePrefix("/")}")
             this.method = method
             body()
-            if (this.body is Parameters) {
-                this.body = FormDataContent(this.body as Parameters)
-            }
         }
     }
 
@@ -63,7 +53,7 @@ class QuoterRequester(val baseUrl: String) {
             if(!v.isJsonPrimitive) {
                 throw IllegalArgumentException("Can't use complex parameters in GET request")
             }
-            parameter(k, v)
+            parameter(k, v.asString)
         }
         body()
     }
