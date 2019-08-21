@@ -4,11 +4,10 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.HttpClientCall
 import io.ktor.client.call.call
 import io.ktor.client.call.receive
-import io.ktor.client.features.json.GsonSerializer
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.HttpClientEngineConfig
 import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.parameter
-import io.ktor.client.request.request
 import io.ktor.client.features.json.JsonFeature
 import io.ktor.http.*
 import io.ktor.http.HttpMethod.Companion.Delete
@@ -22,12 +21,11 @@ import java.lang.IllegalArgumentException
 
 typealias RequestBuilder = HttpRequestBuilder.() -> Unit
 
-class QuoterRequester(val baseUrl: String) {
+class QuoterRequester(val baseUrl: String, engine: HttpClientEngine, engineConfig: HttpClientEngineConfig.() -> Unit) {
 
-    val client = HttpClient {
-
+    val client = HttpClient(engine) {
         install(JsonFeature)
-
+        engine { engineConfig() }
     }
 
     suspend fun call(path: String, method: HttpMethod, body: RequestBuilder = {}): HttpClientCall {

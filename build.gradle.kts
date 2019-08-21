@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.uadaf"
-version = "1.2"
+version = "1.3"
 
 repositories {
     mavenCentral()
@@ -14,16 +14,21 @@ repositories {
 }
 val gsonVersion = "2.8.5"
 val ktorVersion = "1.2.1"
+
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-apache:$ktorVersion")
     implementation("com.google.code.gson:gson:$gsonVersion")
     implementation("io.ktor:ktor-client-gson:$ktorVersion")
 }
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "1.8"
+}
+
+val sourcesJar by tasks.creating(Jar::class) {
+    classifier = "sources"
+    from(kotlin.sourceSets["main"].kotlin)
 }
 
 publishing {
@@ -39,9 +44,4 @@ publishing {
             artifact(sourcesJar)
         }
     }
-}
-
-val sourcesJar by tasks.creating(Jar::class) {
-    classifier = "sources"
-    from(kotlin.sourceSets["main"].kotlin)
 }

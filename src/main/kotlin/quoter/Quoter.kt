@@ -1,13 +1,14 @@
 package quoter
 
 import io.ktor.client.call.HttpClientCall
+import io.ktor.client.engine.HttpClientEngine
+import io.ktor.client.engine.HttpClientEngineConfig
 import io.ktor.client.features.ClientRequestException
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.response.readBytes
 import io.ktor.content.ByteArrayContent
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.runBlocking
 import quoter.requester.QuoterRequester
 import quoter.util.JsonObjectBuilder
 
@@ -17,9 +18,9 @@ enum class DisplayType(val strValue: String) {
     DIALOG("dialog")
 }
 
-class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: String = "uadaf") {
+class Quoter(baseUrl: String, httpClientEngine: HttpClientEngine, val accessKey: String? = null, val defaultRepo: String = "uadaf", httpClientEngineConfig: HttpClientEngineConfig.() -> Unit = {  }) {
 
-    private val reqester = QuoterRequester(baseUrl)
+    private val requester = QuoterRequester(baseUrl, httpClientEngine, httpClientEngineConfig)
 
     private fun HttpRequestBuilder.addKey() {
         if (accessKey != null) {
@@ -37,7 +38,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
                     displayType: DisplayType? = null, attachments: List<String>? = null, repo: String = defaultRepo): HttpClientCall {
         val authorsStr = authors.joinToString(";")
         val attachmentsStr = attachments?.joinToString(";")
-        return reqester.putCall("", {
+        return requester.putCall("", {
             init(repo)
             "adder" to adder
             "authors" to authorsStr
@@ -59,7 +60,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun attach(id: Int, attachment: String, repo: String = defaultRepo): HttpClientCall {
-        return reqester.putCall("attach", {
+        return requester.putCall("attach", {
             init(repo)
             "id" to id
             "attachment" to attachment
@@ -70,7 +71,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
 
     suspend fun byId(id: Int, repo: String = defaultRepo): Quote? {
         return try {
-            reqester.get(id.toString(), {
+            requester.get(id.toString(), {
                 init(repo)
             })
         } catch (e: ClientRequestException) {
@@ -83,7 +84,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun byRange(from: Int, to: Int, repo: String = defaultRepo): List<Quote> {
-        return reqester.get("$from/$to", {
+        return requester.get("$from/$to", {
             init(repo)
         })
     }
@@ -93,25 +94,25 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun random(count: Int = 1, repo: String = defaultRepo): List<Quote> {
-        return reqester.get("random/$count", {
+        return requester.get("random/$count", {
             init(repo)
         })
     }
 
     suspend fun all(repo: String = defaultRepo): List<Quote> {
-        return reqester.get("all", {
+        return requester.get("all", {
             init(repo)
         })
     }
 
     suspend fun total(repo: String = defaultRepo): Int {
-        return reqester.get<String>("total", {
+        return requester.get<String>("total", {
             init(repo)
         }).toInt()
     }
 
     suspend fun edit(id: Int, editedBy: String, newContent: String, repo: String = defaultRepo): HttpClientCall {
-        return reqester.postCall("edit", {
+        return requester.postCall("edit", {
             init(repo)
             "id" to id
             "edited_by" to editedBy
@@ -122,19 +123,19 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun fixIds(repo: String = defaultRepo): HttpClientCall {
-        return reqester.postCall("fix_ids", { init(repo) }) {
+        return requester.postCall("fix_ids", { init(repo) }) {
             addKey()
         }
     }
 
     suspend fun addRepo(name: String): HttpClientCall {
-        return reqester.putCall("repo", { "name" to name }) {
+        return requester.putCall("repo", { "name" to name }) {
             addKey()
         }
     }
 
     suspend fun registerAttachment(type: String, data: ByteArray): String {
-        return reqester.put("attachments", {}) {
+        return requester.put("attachments", {}) {
             addKey()
             header("X-Attachment-Content-Type", type)
             body = ByteArrayContent(data)
@@ -142,7 +143,7 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun getAttachment(id: String): Pair<String, ByteArray>? {
-        val call = reqester.getCall("attachments/$id", {})
+        val call = requester.getCall("attachments/$id", {})
         if (call.response.status == HttpStatusCode.NotFound) {
             return null
         }
@@ -152,13 +153,13 @@ class Quoter(baseUrl: String, val accessKey: String? = null, val defaultRepo: St
     }
 
     suspend fun deleteAttachment(id: String): HttpClientCall {
-        return reqester.deleteCall("attachments/$id", {}) {
+        return requester.deleteCall("attachments/$id", {}) {
             addKey()
         }
     }
 
     fun close() {
-        reqester.close()
+        requester.close()
     }
 
 }
