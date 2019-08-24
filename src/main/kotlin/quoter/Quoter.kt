@@ -3,6 +3,7 @@ package quoter
 import io.ktor.client.call.HttpClientCall
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineConfig
+import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.features.ClientRequestException
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -18,7 +19,7 @@ enum class DisplayType(val strValue: String) {
     DIALOG("dialog")
 }
 
-class Quoter(baseUrl: String, httpClientEngine: HttpClientEngine, val accessKey: String? = null, val defaultRepo: String = "uadaf", httpClientEngineConfig: HttpClientEngineConfig.() -> Unit = {  }) {
+class Quoter<T: HttpClientEngineConfig>(baseUrl: String, httpClientEngine: HttpClientEngineFactory<T>, val accessKey: String? = null, val defaultRepo: String = "uadaf", httpClientEngineConfig: T.() -> Unit = {  }) {
 
     private val requester = QuoterRequester(baseUrl, httpClientEngine, httpClientEngineConfig)
 

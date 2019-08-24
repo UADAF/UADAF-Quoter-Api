@@ -6,6 +6,7 @@ import io.ktor.client.call.call
 import io.ktor.client.call.receive
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineConfig
+import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.parameter
 import io.ktor.client.features.json.JsonFeature
@@ -21,9 +22,9 @@ import java.lang.IllegalArgumentException
 
 typealias RequestBuilder = HttpRequestBuilder.() -> Unit
 
-class QuoterRequester(val baseUrl: String, engine: HttpClientEngine, engineConfig: HttpClientEngineConfig.() -> Unit) {
+class QuoterRequester<T: HttpClientEngineConfig>(val baseUrl: String, factory: HttpClientEngineFactory<T>, engineConfig: T.() -> Unit) {
 
-    val client = HttpClient(engine) {
+    val client = HttpClient(factory) {
         install(JsonFeature)
         engine { engineConfig() }
     }

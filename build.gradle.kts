@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.uadaf"
-version = "1.3"
+version = "1.3.1"
 
 repositories {
     mavenCentral()
