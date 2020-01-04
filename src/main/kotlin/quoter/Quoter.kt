@@ -1,7 +1,6 @@
 package quoter
 
 import io.ktor.client.call.HttpClientCall
-import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.HttpClientEngineConfig
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.features.ClientRequestException
@@ -24,16 +23,15 @@ class Quoter<T: HttpClientEngineConfig>(baseUrl: String, httpClientEngine: HttpC
     private val requester = QuoterRequester(baseUrl, httpClientEngine, httpClientEngineConfig)
 
     private fun HttpRequestBuilder.addKey() {
-        if (accessKey != null) {
-            header("X-Access-Key", accessKey)
-        } else {
-            throw IllegalStateException("Trying to modify quoter without access key")
-        }
+        check(accessKey != null) { "Trying to modify quoter without access key" }
+        header("X-Access-Key", accessKey)
     }
 
     private fun JsonObjectBuilder.init(repo: String) {
         "resolver" to repo
     }
+
+    private fun JsonObjectBuilder.maybe(name: String, value: String?) = value?.let { name to it }
 
     suspend fun add(adder: String, authors: List<String>, content: String,
                     displayType: DisplayType? = null, attachments: List<String>? = null, repo: String = defaultRepo): HttpClientCall {
@@ -44,12 +42,8 @@ class Quoter<T: HttpClientEngineConfig>(baseUrl: String, httpClientEngine: HttpC
             "adder" to adder
             "authors" to authorsStr
             "content" to content
-            if(displayType != null) {
-                "dtype" to displayType.strValue
-            }
-            if (attachmentsStr != null) {
-                "attachments" to attachmentsStr
-            }
+            maybe("dtype", displayType?.strValue)
+            maybe("attachments", attachmentsStr)
         }) {
             addKey()
         }
@@ -91,7 +85,7 @@ class Quoter<T: HttpClientEngineConfig>(baseUrl: String, httpClientEngine: HttpC
     }
 
     suspend fun byRange(range: IntRange, repo: String = defaultRepo): List<Quote> {
-        return byRange(range.start, range.endInclusive, repo)
+        return byRange(range.first, range.last, repo)
     }
 
     suspend fun random(count: Int = 1, repo: String = defaultRepo): List<Quote> {
@@ -121,6 +115,22 @@ class Quoter<T: HttpClientEngineConfig>(baseUrl: String, httpClientEngine: HttpC
         }) {
             addKey()
         }
+    }
+
+    suspend fun search(adder: String? = null, authors: List<String>? = null, content: String? = null,
+                       repo: String = defaultRepo): List<Quote> {
+        require(authors == null || authors.isNotEmpty())
+        return requester.get("search", {
+            init(repo)
+            maybe("adder", adder)
+            maybe("authors", authors?.joinToString(";"))
+            maybe("content", content)
+        })
+    }
+
+    suspend fun search(adder: String? = null, authors: String, content: String? = null,
+                       repo: String = defaultRepo): List<Quote> {
+        return search(adder, listOf(authors), content, repo)
     }
 
     suspend fun fixIds(repo: String = defaultRepo): HttpClientCall {
